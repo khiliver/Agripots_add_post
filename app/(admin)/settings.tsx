@@ -12,6 +12,7 @@ export default function AdminSettingsScreen() {
   const handleLogout = async () => {
     try {
       await AsyncStorage.clear();
+      // Force navigation to login screen
       router.replace('/auth/login');
     } catch (error) {
       console.error('Error during logout:', error);
