@@ -9,6 +9,16 @@ export default function SettingsScreen() {
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
 
   const handleLogout = async () => {
+    try {
+      await AsyncStorage.clear();
+      router.replace('/auth/login');
+    } catch (error) {
+      console.error('Error during logout:', error);
+      Alert.alert('Error', 'Failed to logout. Please try again.');
+    }
+  };
+
+  const confirmLogout = () => {
     Alert.alert(
       "Confirm Logout",
       "Are you sure you want to logout?",
@@ -20,17 +30,7 @@ export default function SettingsScreen() {
         {
           text: "Logout",
           style: "destructive",
-          onPress: async () => {
-            try {
-              // Clear all stored data
-              await AsyncStorage.clear();
-              // Navigate to login screen
-              router.replace('/auth/login');
-            } catch (error) {
-              console.error('Error during logout:', error);
-              Alert.alert('Error', 'Failed to logout. Please try again.');
-            }
-          }
+          onPress: handleLogout
         }
       ]
     );
@@ -38,7 +38,6 @@ export default function SettingsScreen() {
 
   const toggleDarkMode = (value: boolean) => {
     setDarkModeEnabled(value);
-    // Here you would implement the actual dark mode logic
     Alert.alert(
       "Dark Mode",
       value ? "Dark mode enabled" : "Dark mode disabled",
@@ -169,7 +168,7 @@ export default function SettingsScreen() {
 
         <TouchableOpacity
           style={styles.logoutButton}
-          onPress={handleLogout}
+          onPress={confirmLogout}
         >
           <LogOut size={18} color="#EF4444" style={styles.logoutIcon} />
           <Text style={styles.logoutText}>Logout</Text>

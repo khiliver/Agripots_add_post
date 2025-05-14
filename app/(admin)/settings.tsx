@@ -10,6 +10,16 @@ export default function AdminSettingsScreen() {
   const [enhancedSecurity, setEnhancedSecurity] = useState(true);
 
   const handleLogout = async () => {
+    try {
+      await AsyncStorage.clear();
+      router.replace('/auth/login');
+    } catch (error) {
+      console.error('Error during logout:', error);
+      Alert.alert('Error', 'Failed to logout. Please try again.');
+    }
+  };
+
+  const confirmLogout = () => {
     Alert.alert(
       "Confirm Logout",
       "Are you sure you want to logout?",
@@ -21,17 +31,7 @@ export default function AdminSettingsScreen() {
         {
           text: "Logout",
           style: "destructive",
-          onPress: async () => {
-            try {
-              // Clear all stored data
-              await AsyncStorage.clear();
-              // Navigate to login screen
-              router.replace('/auth/login');
-            } catch (error) {
-              console.error('Error during logout:', error);
-              Alert.alert('Error', 'Failed to logout. Please try again.');
-            }
-          }
+          onPress: handleLogout
         }
       ]
     );
@@ -191,7 +191,7 @@ export default function AdminSettingsScreen() {
         
         <TouchableOpacity 
           style={styles.logoutButton}
-          onPress={handleLogout}
+          onPress={confirmLogout}
         >
           <LogOut size={18} color="#EF4444" style={styles.logoutIcon} />
           <Text style={styles.logoutText}>Logout Admin</Text>
