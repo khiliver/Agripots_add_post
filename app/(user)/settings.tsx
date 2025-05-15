@@ -10,12 +10,18 @@ export default function SettingsScreen() {
 
   const handleLogout = async () => {
     try {
+      // Clear all storage
       await AsyncStorage.clear();
-      // Force navigation to login screen
+      
+      // Force navigation to login screen and reset navigation state
       router.replace('/auth/login');
     } catch (error) {
       console.error('Error during logout:', error);
-      Alert.alert('Error', 'Failed to logout. Please try again.');
+      Alert.alert(
+        'Error',
+        'Failed to logout. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
