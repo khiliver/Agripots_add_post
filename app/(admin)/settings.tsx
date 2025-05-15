@@ -11,37 +11,12 @@ export default function AdminSettingsScreen() {
 
   const handleLogout = async () => {
     try {
-      // Clear all storage
       await AsyncStorage.clear();
-      
-      // Force navigation to login screen and reset navigation state
       router.replace('/auth/login');
     } catch (error) {
       console.error('Error during logout:', error);
-      Alert.alert(
-        'Error',
-        'Failed to logout. Please try again.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Error', 'Failed to logout. Please try again.');
     }
-  };
-
-  const confirmLogout = () => {
-    Alert.alert(
-      "Confirm Logout",
-      "Are you sure you want to logout?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: handleLogout
-        }
-      ]
-    );
   };
 
   const renderSettingItem = (
@@ -83,26 +58,7 @@ export default function AdminSettingsScreen() {
             "Temporarily disable user access",
             <Switch
               value={maintenanceMode}
-              onValueChange={(value) => {
-                if (value) {
-                  Alert.alert(
-                    "Enable Maintenance Mode",
-                    "This will temporarily disable user access to the application. Are you sure?",
-                    [
-                      {
-                        text: "Cancel",
-                        style: "cancel"
-                      },
-                      {
-                        text: "Enable",
-                        onPress: () => setMaintenanceMode(true)
-                      }
-                    ]
-                  );
-                } else {
-                  setMaintenanceMode(false);
-                }
-              }}
+              onValueChange={setMaintenanceMode}
               trackColor={{ false: '#D1D5DB', true: '#BFDBFE' }}
               thumbColor={maintenanceMode ? '#3B82F6' : '#9CA3AF'}
             />
@@ -198,7 +154,7 @@ export default function AdminSettingsScreen() {
         
         <TouchableOpacity 
           style={styles.logoutButton}
-          onPress={confirmLogout}
+          onPress={handleLogout}
         >
           <LogOut size={18} color="#EF4444" style={styles.logoutIcon} />
           <Text style={styles.logoutText}>Logout Admin</Text>
