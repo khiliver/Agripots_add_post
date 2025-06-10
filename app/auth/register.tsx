@@ -1,21 +1,35 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { Eye, EyeOff, ArrowLeft } from 'lucide-react-native';
+import { Eye, EyeOff, ArrowLeft, User, Mail, Lock, UserCheck } from 'lucide-react-native';
+import { UserService } from '../../services/userService';
 
 export default function RegisterScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState<'user' | 'admin'>('user');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!name || !email || !password || !confirmPassword) {
+    // Validation
+    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
       setError('Please fill in all fields');
+      return;
+    }
+
+    if (!UserService.validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    const passwordValidation = UserService.validatePassword(password);
+    if (!passwordValidation.isValid) {
+      setError(passwordValidation.message || 'Invalid password');
       return;
     }
 
@@ -28,14 +42,35 @@ export default function RegisterScreen() {
     setError(null);
 
     try {
-      // Simulate API call for registration
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const newUser = await UserService.createUser({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        role,
+      });
+
+      // Auto-login the new user
+      await UserService.setCurrentUser(newUser);
       
-      // Navigate to login after successful registration
-      router.replace('/auth/login');
-    } catch (error) {
+      Alert.alert(
+        'Account Created!',
+        `Welcome ${newUser.name}! Your account has been created successfully.`,
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              if (newUser.role === 'admin') {
+                router.replace('/(admin)/dashboard');
+              } else {
+                router.replace('/(user)/home');
+              }
+            },
+          },
+        ]
+      );
+    } catch (error: any) {
       console.error('Registration error:', error);
-      setError('An error occurred during registration. Please try again.');
+      setError(error.message || 'An error occurred during registration. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -56,45 +91,83 @@ export default function RegisterScreen() {
             style={styles.backButton} 
             onPress={navigateBack}
           >
-            <ArrowLeft size={24} color="#111827" />
+            <ArrowLeft size={24} color="#1B5E20" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Create Account</Text>
         </View>
 
         <View style={styles.formContainer}>
+          <Text style={styles.title}>Join AgriPots</Text>
+          <Text style={styles.subtitle}>Create your account to get started</Text>
+
           {error && <Text style={styles.errorText}>{error}</Text>}
           
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your full name"
-              value={name}
-              onChangeText={setName}
-            />
+            <View style={styles.inputWrapper}>
+              <User size={20} color="#6B7280" style={styles.inputIcon} />
+              <TextInput
+                style={styles.inputWithIcon}
+                placeholder="Enter your full name"
+                value={name}
+                onChangeText={setName}
+                autoComplete="name"
+              />
+            </View>
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+            <Text style={styles.label}>Email Address</Text>
+            <View style={styles.inputWrapper}>
+              <Mail size={20} color="#6B7280" style={styles.inputIcon} />
+              <TextInput
+                style={styles.inputWithIcon}
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Account Type</Text>
+            <View style={styles.roleContainer}>
+              <TouchableOpacity
+                style={[styles.roleButton, role === 'user' && styles.roleButtonActive]}
+                onPress={() => setRole('user')}
+              >
+                <User size={20} color={role === 'user' ? '#FFFFFF' : '#6B7280'} />
+                <Text style={[styles.roleButtonText, role === 'user' && styles.roleButtonTextActive]}>
+                  Regular User
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.roleButton, role === 'admin' && styles.roleButtonActive]}
+                onPress={() => setRole('admin')}
+              >
+                <UserCheck size={20} color={role === 'admin' ? '#FFFFFF' : '#6B7280'} />
+                <Text style={[styles.roleButtonText, role === 'admin' && styles.roleButtonTextActive]}>
+                  Administrator
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordContainer}>
+              <Lock size={20} color="#6B7280" style={styles.inputIcon} />
               <TextInput
                 style={styles.passwordInput}
-                placeholder="Create a password"
+                placeholder="Create a password (min. 6 characters)"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                autoComplete="new-password"
               />
               <TouchableOpacity 
                 style={styles.passwordToggle} 
@@ -111,12 +184,14 @@ export default function RegisterScreen() {
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Confirm Password</Text>
             <View style={styles.passwordContainer}>
+              <Lock size={20} color="#6B7280" style={styles.inputIcon} />
               <TextInput
                 style={styles.passwordInput}
                 placeholder="Confirm your password"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showConfirmPassword}
+                autoComplete="new-password"
               />
               <TouchableOpacity 
                 style={styles.passwordToggle} 
@@ -167,6 +242,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 60,
     paddingBottom: 16,
+    backgroundColor: '#F9FAFB',
   },
   backButton: {
     padding: 8,
@@ -176,13 +252,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 18,
     fontFamily: 'Inter-Bold',
-    color: '#111827',
-    marginRight: 40, // Balance the back button
+    color: '#1B5E20',
+    marginRight: 40,
   },
   formContainer: {
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 24,
+    backgroundColor: '#FFFFFF',
+  },
+  title: {
+    fontSize: 28,
+    fontFamily: 'Inter-Bold',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#6B7280',
+    marginBottom: 24,
   },
   errorText: {
     backgroundColor: '#FEE2E2',
@@ -202,18 +291,57 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     marginBottom: 8,
   },
-  input: {
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#F9FAFB',
-    height: 48,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    paddingHorizontal: 16,
+    height: 48,
+  },
+  inputIcon: {
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  inputWithIcon: {
+    flex: 1,
+    paddingRight: 16,
     fontSize: 16,
     fontFamily: 'Inter-Regular',
   },
+  roleContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  roleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  roleButtonActive: {
+    backgroundColor: '#1B5E20',
+    borderColor: '#1B5E20',
+  },
+  roleButtonText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: '#6B7280',
+  },
+  roleButtonTextActive: {
+    color: '#FFFFFF',
+  },
   passwordContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#F9FAFB',
     borderRadius: 8,
     borderWidth: 1,
@@ -222,7 +350,7 @@ const styles = StyleSheet.create({
   },
   passwordInput: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingRight: 8,
     fontSize: 16,
     fontFamily: 'Inter-Regular',
   },
@@ -232,7 +360,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   button: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#1B5E20',
     height: 48,
     borderRadius: 8,
     justifyContent: 'center',
@@ -258,7 +386,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
   },
   loginLink: {
-    color: '#3B82F6',
+    color: '#1B5E20',
     fontSize: 14,
     fontFamily: 'Inter-Medium',
   },

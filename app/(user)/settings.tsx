@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View, Switch, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ChevronRight, Bell, Moon, Globe, Lock, CircleHelp as HelpCircle, LogOut } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { UserService } from '../../services/userService';
 
 export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -10,7 +10,7 @@ export default function SettingsScreen() {
 
   const handleLogout = async () => {
     try {
-      await AsyncStorage.clear();
+      await UserService.clearCurrentUser();
       router.replace('/auth/login');
     } catch (error) {
       console.error('Error during logout:', error);

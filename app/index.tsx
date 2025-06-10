@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Redirect } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { UserService } from '../services/userService';
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
@@ -9,15 +9,17 @@ export default function Home() {
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if user is authenticated
     const checkAuthStatus = async () => {
       try {
-        const token = await AsyncStorage.getItem('authToken');
-        const role = await AsyncStorage.getItem('userRole');
+        // Initialize users first
+        await UserService.initializeUsers();
         
-        if (token) {
+        // Check if user is authenticated
+        const currentUser = await UserService.getCurrentUser();
+        
+        if (currentUser) {
           setIsAuthenticated(true);
-          setUserRole(role);
+          setUserRole(currentUser.role);
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
@@ -32,7 +34,7 @@ export default function Home() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#3B82F6" />
+        <ActivityIndicator size="large" color="#1B5E20" />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -62,5 +64,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#4B5563',
+    fontFamily: 'Inter-Regular',
   },
 });

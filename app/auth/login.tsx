@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Eye, EyeOff } from 'lucide-react-native';
+import { UserService } from '../../services/userService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -11,9 +11,19 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    // Initialize users on component mount
+    UserService.initializeUsers();
+  }, []);
+
   const handleLogin = async () => {
     if (!email || !password) {
       setError('Please enter both email and password');
+      return;
+    }
+
+    if (!UserService.validateEmail(email)) {
+      setError('Please enter a valid email address');
       return;
     }
 
@@ -21,22 +31,16 @@ export default function LoginScreen() {
     setError(null);
 
     try {
-      // Simulate API call for authentication
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Demo login logic (replace with actual authentication)
-      if (email === 'admin@example.com' && password === 'admin123') {
-        // Admin login
-        await AsyncStorage.setItem('authToken', 'demo-token-admin');
-        await AsyncStorage.setItem('userRole', 'admin');
-        await AsyncStorage.setItem('userName', 'Admin User');
-        router.replace('/(admin)/dashboard');
-      } else if (email === 'user@example.com' && password === 'user123') {
-        // Regular user login
-        await AsyncStorage.setItem('authToken', 'demo-token-user');
-        await AsyncStorage.setItem('userRole', 'user');
-        await AsyncStorage.setItem('userName', 'Regular User');
-        router.replace('/(user)/home');
+      const user = await UserService.authenticateUser(email, password);
+      
+      if (user) {
+        await UserService.setCurrentUser(user);
+        
+        if (user.role === 'admin') {
+          router.replace('/(admin)/dashboard');
+        } else {
+          router.replace('/(user)/home');
+        }
       } else {
         setError('Invalid email or password');
       }
@@ -66,11 +70,13 @@ export default function LoginScreen() {
           source={{ uri: 'https://images.pexels.com/photos/5926393/pexels-photo-5926393.jpeg?auto=compress&cs=tinysrgb&w=300' }} 
           style={styles.logo} 
         />
-        <Text style={styles.appName}>AdminUser App</Text>
+        <Text style={styles.appName}>AgriPots</Text>
+        <Text style={styles.appSubtitle}>Smart Agriculture Management</Text>
       </View>
 
       <View style={styles.formContainer}>
-        <Text style={styles.title}>Sign In</Text>
+        <Text style={styles.title}>Welcome Back</Text>
+        <Text style={styles.subtitle}>Sign in to your account</Text>
         
         {error && <Text style={styles.errorText}>{error}</Text>}
         
@@ -83,6 +89,7 @@ export default function LoginScreen() {
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoComplete="email"
           />
         </View>
 
@@ -95,6 +102,7 @@ export default function LoginScreen() {
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
+              autoComplete="password"
             />
             <TouchableOpacity 
               style={styles.passwordToggle} 
@@ -123,14 +131,30 @@ export default function LoginScreen() {
         <View style={styles.registerContainer}>
           <Text style={styles.registerText}>Don't have an account? </Text>
           <TouchableOpacity onPress={navigateToRegister}>
-            <Text style={styles.registerLink}>Register</Text>
+            <Text style={styles.registerLink}>Create Account</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.demoCredentials}>
-          <Text style={styles.demoTitle}>Demo Credentials:</Text>
-          <Text style={styles.demoText}>Admin: admin@example.com / admin123</Text>
-          <Text style={styles.demoText}>User: user@example.com / user123</Text>
+          <Text style={styles.demoTitle}>Demo Accounts:</Text>
+          <TouchableOpacity 
+            style={styles.demoButton}
+            onPress={() => {
+              setEmail('admin@example.com');
+              setPassword('admin123');
+            }}
+          >
+            <Text style={styles.demoButtonText}>Use Admin Account</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.demoButton}
+            onPress={() => {
+              setEmail('user@example.com');
+              setPassword('user123');
+            }}
+          >
+            <Text style={styles.demoButtonText}>Use User Account</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -153,10 +177,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   appName: {
-    marginTop: 8,
-    fontSize: 22,
+    marginTop: 12,
+    fontSize: 28,
     fontFamily: 'Inter-Bold',
-    color: '#111827',
+    color: '#1B5E20',
+  },
+  appSubtitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#6B7280',
+    marginTop: 4,
   },
   formContainer: {
     flex: 1,
@@ -171,6 +201,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontFamily: 'Inter-Bold',
     color: '#111827',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#6B7280',
     marginBottom: 24,
   },
   errorText: {
@@ -225,12 +261,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   forgotPasswordText: {
-    color: '#3B82F6',
+    color: '#1B5E20',
     fontSize: 14,
     fontFamily: 'Inter-Medium',
   },
   button: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#1B5E20',
     height: 48,
     borderRadius: 8,
     justifyContent: 'center',
@@ -256,7 +292,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
   },
   registerLink: {
-    color: '#3B82F6',
+    color: '#1B5E20',
     fontSize: 14,
     fontFamily: 'Inter-Medium',
   },
@@ -270,12 +306,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Bold',
     color: '#4B5563',
-    marginBottom: 8,
+    marginBottom: 12,
+    textAlign: 'center',
   },
-  demoText: {
+  demoButton: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  demoButtonText: {
     fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
-    marginBottom: 4,
+    fontFamily: 'Inter-Medium',
+    color: '#1B5E20',
+    textAlign: 'center',
   },
 });
