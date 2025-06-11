@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
-import { Clock, AlertTriangle } from 'lucide-react-native';
+import { Clock, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 
 interface SessionTimeoutWrapperProps {
