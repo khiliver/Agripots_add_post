@@ -9,8 +9,18 @@ export interface User {
   createdAt: string;
 }
 
+export interface LoginAttempt {
+  email: string;
+  failedAttempts: number;
+  lastFailedAttempt: string;
+  lockedUntil?: string;
+}
+
 const USERS_STORAGE_KEY = 'app_users';
 const CURRENT_USER_KEY = 'current_user';
+const LOGIN_ATTEMPTS_KEY = 'login_attempts';
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 30 * 1000; // 30 seconds in milliseconds
 
 // Initialize with default admin and user accounts
 const DEFAULT_USERS: User[] = [
@@ -90,16 +100,138 @@ export class UserService {
     }
   }
 
-  static async authenticateUser(email: string, password: string): Promise<User | null> {
+  static async getLoginAttempts(): Promise<LoginAttempt[]> {
     try {
+      const attemptsJson = await AsyncStorage.getItem(LOGIN_ATTEMPTS_KEY);
+      return attemptsJson ? JSON.parse(attemptsJson) : [];
+    } catch (error) {
+      console.error('Error getting login attempts:', error);
+      return [];
+    }
+  }
+
+  static async saveLoginAttempts(attempts: LoginAttempt[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(LOGIN_ATTEMPTS_KEY, JSON.stringify(attempts));
+    } catch (error) {
+      console.error('Error saving login attempts:', error);
+    }
+  }
+
+  static async checkAccountLockout(email: string): Promise<{ isLocked: boolean; remainingTime?: number }> {
+    try {
+      const attempts = await this.getLoginAttempts();
+      const userAttempt = attempts.find(attempt => attempt.email.toLowerCase() === email.toLowerCase());
+      
+      if (!userAttempt || userAttempt.failedAttempts < MAX_FAILED_ATTEMPTS) {
+        return { isLocked: false };
+      }
+
+      if (userAttempt.lockedUntil) {
+        const lockoutTime = new Date(userAttempt.lockedUntil).getTime();
+        const currentTime = new Date().getTime();
+        
+        if (currentTime < lockoutTime) {
+          const remainingTime = Math.ceil((lockoutTime - currentTime) / 1000);
+          return { isLocked: true, remainingTime };
+        } else {
+          // Lockout period has expired, reset attempts
+          await this.resetFailedAttempts(email);
+          return { isLocked: false };
+        }
+      }
+
+      return { isLocked: false };
+    } catch (error) {
+      console.error('Error checking account lockout:', error);
+      return { isLocked: false };
+    }
+  }
+
+  static async recordFailedAttempt(email: string): Promise<void> {
+    try {
+      const attempts = await this.getLoginAttempts();
+      const existingAttemptIndex = attempts.findIndex(attempt => 
+        attempt.email.toLowerCase() === email.toLowerCase()
+      );
+
+      const now = new Date().toISOString();
+
+      if (existingAttemptIndex >= 0) {
+        attempts[existingAttemptIndex].failedAttempts += 1;
+        attempts[existingAttemptIndex].lastFailedAttempt = now;
+        
+        if (attempts[existingAttemptIndex].failedAttempts >= MAX_FAILED_ATTEMPTS) {
+          const lockoutTime = new Date(Date.now() + LOCKOUT_DURATION).toISOString();
+          attempts[existingAttemptIndex].lockedUntil = lockoutTime;
+        }
+      } else {
+        const newAttempt: LoginAttempt = {
+          email: email.toLowerCase(),
+          failedAttempts: 1,
+          lastFailedAttempt: now,
+        };
+        attempts.push(newAttempt);
+      }
+
+      await this.saveLoginAttempts(attempts);
+    } catch (error) {
+      console.error('Error recording failed attempt:', error);
+    }
+  }
+
+  static async resetFailedAttempts(email: string): Promise<void> {
+    try {
+      const attempts = await this.getLoginAttempts();
+      const filteredAttempts = attempts.filter(attempt => 
+        attempt.email.toLowerCase() !== email.toLowerCase()
+      );
+      await this.saveLoginAttempts(filteredAttempts);
+    } catch (error) {
+      console.error('Error resetting failed attempts:', error);
+    }
+  }
+
+  static async authenticateUser(email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> {
+    try {
+      // Check if account is locked
+      const lockoutStatus = await this.checkAccountLockout(email);
+      if (lockoutStatus.isLocked) {
+        return {
+          success: false,
+          error: `Account temporarily locked. Try again in ${lockoutStatus.remainingTime} seconds.`
+        };
+      }
+
       const user = await this.getUserByEmail(email);
       if (user && user.password === password) {
-        return user;
+        // Successful login - reset failed attempts
+        await this.resetFailedAttempts(email);
+        return { success: true, user };
+      } else {
+        // Failed login - record attempt
+        await this.recordFailedAttempt(email);
+        
+        // Check how many attempts are left
+        const attempts = await this.getLoginAttempts();
+        const userAttempt = attempts.find(attempt => attempt.email.toLowerCase() === email.toLowerCase());
+        const remainingAttempts = MAX_FAILED_ATTEMPTS - (userAttempt?.failedAttempts || 0);
+        
+        if (remainingAttempts <= 0) {
+          return {
+            success: false,
+            error: 'Account locked due to too many failed attempts. Try again in 30 seconds.'
+          };
+        } else {
+          return {
+            success: false,
+            error: `Invalid email or password. ${remainingAttempts} attempts remaining.`
+          };
+        }
       }
-      return null;
     } catch (error) {
       console.error('Error authenticating user:', error);
-      return null;
+      return { success: false, error: 'An error occurred during authentication.' };
     }
   }
 
