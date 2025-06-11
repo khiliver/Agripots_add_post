@@ -16,11 +16,19 @@ export interface LoginAttempt {
   lockedUntil?: string;
 }
 
+export interface SessionInfo {
+  userId: string;
+  lastActivity: string;
+  sessionTimeout: number; // in milliseconds
+}
+
 const USERS_STORAGE_KEY = 'app_users';
 const CURRENT_USER_KEY = 'current_user';
 const LOGIN_ATTEMPTS_KEY = 'login_attempts';
+const SESSION_INFO_KEY = 'session_info';
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 30 * 1000; // 30 seconds in milliseconds
+const SESSION_TIMEOUT = 20 * 1000; // 20 seconds in milliseconds
 
 // Initialize with default admin and user accounts
 const DEFAULT_USERS: User[] = [
@@ -241,6 +249,9 @@ export class UserService {
       await AsyncStorage.setItem('authToken', `token-${user.id}`);
       await AsyncStorage.setItem('userRole', user.role);
       await AsyncStorage.setItem('userName', user.name);
+      
+      // Initialize session info
+      await this.updateSessionActivity(user.id);
     } catch (error) {
       console.error('Error setting current user:', error);
       throw error;
@@ -263,7 +274,8 @@ export class UserService {
         CURRENT_USER_KEY,
         'authToken',
         'userRole',
-        'userName'
+        'userName',
+        SESSION_INFO_KEY
       ]);
     } catch (error) {
       console.error('Error clearing current user:', error);
@@ -306,6 +318,67 @@ export class UserService {
     } catch (error) {
       console.error('Error deleting user:', error);
       throw error;
+    }
+  }
+
+  // Session Management Methods
+  static async updateSessionActivity(userId: string): Promise<void> {
+    try {
+      const sessionInfo: SessionInfo = {
+        userId,
+        lastActivity: new Date().toISOString(),
+        sessionTimeout: SESSION_TIMEOUT,
+      };
+      await AsyncStorage.setItem(SESSION_INFO_KEY, JSON.stringify(sessionInfo));
+    } catch (error) {
+      console.error('Error updating session activity:', error);
+    }
+  }
+
+  static async getSessionInfo(): Promise<SessionInfo | null> {
+    try {
+      const sessionJson = await AsyncStorage.getItem(SESSION_INFO_KEY);
+      return sessionJson ? JSON.parse(sessionJson) : null;
+    } catch (error) {
+      console.error('Error getting session info:', error);
+      return null;
+    }
+  }
+
+  static async isSessionExpired(): Promise<boolean> {
+    try {
+      const sessionInfo = await this.getSessionInfo();
+      if (!sessionInfo) {
+        return true;
+      }
+
+      const lastActivity = new Date(sessionInfo.lastActivity).getTime();
+      const currentTime = new Date().getTime();
+      const timeDifference = currentTime - lastActivity;
+
+      return timeDifference > sessionInfo.sessionTimeout;
+    } catch (error) {
+      console.error('Error checking session expiry:', error);
+      return true;
+    }
+  }
+
+  static async getSessionTimeRemaining(): Promise<number> {
+    try {
+      const sessionInfo = await this.getSessionInfo();
+      if (!sessionInfo) {
+        return 0;
+      }
+
+      const lastActivity = new Date(sessionInfo.lastActivity).getTime();
+      const currentTime = new Date().getTime();
+      const timeDifference = currentTime - lastActivity;
+      const timeRemaining = sessionInfo.sessionTimeout - timeDifference;
+
+      return Math.max(0, Math.ceil(timeRemaining / 1000));
+    } catch (error) {
+      console.error('Error getting session time remaining:', error);
+      return 0;
     }
   }
 
