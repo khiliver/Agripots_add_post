@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { StyleSheet } from 'react-native';
-import { Home, User, MessageSquare, Settings, ShoppingBag } from 'lucide-react-native';
+import { Chrome as Home, User, MessageSquare, Settings, ShoppingBag } from 'lucide-react-native';
 import { SessionTimeoutWrapper } from '../../components/SessionTimeoutWrapper';
 
 export default function UserTabLayout() {
